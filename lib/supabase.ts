@@ -16,9 +16,3 @@ if (!supabaseAnonKey) {
 
 // Cliente principal (funciona no client e server)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Cliente admin (apenas para server-side - API routes)
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-export const supabaseAdmin = supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
