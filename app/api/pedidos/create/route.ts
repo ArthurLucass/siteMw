@@ -1,5 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { MercadoPagoConfig, Preference } from "mercadopago";
+
+// Função auxiliar para criar preferência no Mercado Pago
+async function createMercadoPagoPreference(data: {
+  pedido_id: string;
+  nome: string;
+  email: string;
+  valor_total: number;
+  lote_id: number;
+  preco_base: number;
+  preco_almoco: number;
+  inclui_almoco: boolean;
+}) {
+  const client = new MercadoPagoConfig({
+    accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
+  });
+
+  const preference = new Preference(client);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  console.log("🔍 AppURL sendo usada:", appUrl);
+  console.log("🔍 URLs que serão enviadas:", {
+    success: `${appUrl}/pagamento/sucesso`,
+    failure: `${appUrl}/pagamento/falha`,
+    pending: `${appUrl}/pagamento/pendente`,
+  });
+
+  const preferenceBody: any = {
+    items: [
+      {
+        id: data.lote_id.toString(),
+        title: `Inscrição Missão de Carnaval 2025 - Lote ${data.lote_id}`,
+        description: `Ingresso: R$ ${data.preco_base.toFixed(2)}${
+          data.inclui_almoco
+            ? ` + Almoço: R$ ${data.preco_almoco.toFixed(2)}`
+            : ""
+        }`,
+        quantity: 1,
+        unit_price: data.valor_total,
+        currency_id: "BRL",
+      },
+    ],
+    payer: {
+      name: data.nome,
+      email: data.email,
+    },
+    external_reference: data.pedido_id,
+    notification_url: `${appUrl}/api/webhook/mercadopago`,
+    statement_descriptor: "MISSAO CARNAVAL 2025",
+  };
+
+  // Adicionar apenas back_urls, sem auto_return
+  preferenceBody.back_urls = {
+    success: `${appUrl}/pagamento/sucesso`,
+    failure: `${appUrl}/pagamento/falha`,
+    pending: `${appUrl}/pagamento/pendente`,
+  };
+
+  // Remover auto_return temporariamente para testar
+  // preferenceBody.auto_return = "approved";
+
+  return await preference.create({ body: preferenceBody });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -105,42 +168,36 @@ export async function POST(request: NextRequest) {
     // 🆕 Criar preferência no Mercado Pago ANTES de salvar no banco
     // Isso evita criar registros órfãos se o pagamento falhar
     console.log("📞 Criando preferência de pagamento...");
-    const preferenceResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/mercadopago/create-preference`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pedido_id: `temp_${Date.now()}`, // ID temporário para criar preferência
-          nome,
-          email,
-          valor_total: valorTotal,
-          lote: loteAtivo,
-          inclui_almoco: inclui_almoco || false,
-        }),
-      }
-    );
 
-    if (!preferenceResponse.ok) {
-      const errorData = await preferenceResponse.json();
-      console.error("❌ Erro ao criar preferência:", {
-        status: preferenceResponse.status,
-        statusText: preferenceResponse.statusText,
-        errorData,
+    let preference;
+    try {
+      const preferenceMp = await createMercadoPagoPreference({
+        pedido_id: `temp_${Date.now()}`, // ID temporário para criar preferência
+        nome,
+        email,
+        valor_total: valorTotal,
+        lote_id: loteAtivo,
+        preco_base: precoBase,
+        preco_almoco: precoAlmoco,
+        inclui_almoco: inclui_almoco || false,
       });
+
+      preference = {
+        id: preferenceMp.id,
+        init_point: preferenceMp.init_point,
+        sandbox_init_point: preferenceMp.sandbox_init_point,
+      };
+
+      console.log("✅ Preferência criada com sucesso:", preference.id);
+    } catch (error: any) {
+      console.error("❌ Erro ao criar preferência:", error);
       return NextResponse.json(
         {
-          error:
-            errorData.details ||
-            errorData.error ||
-            "Erro ao criar preferência de pagamento",
+          error: error.message || "Erro ao criar preferência de pagamento",
         },
         { status: 500 }
       );
     }
-
-    const preference = await preferenceResponse.json();
-    console.log("✅ Preferência criada com sucesso:", preference.id);
 
     // ✅ Agora sim, salvar pedido no Supabase
     const { data: pedidoData, error: pedidoError } = await supabase
