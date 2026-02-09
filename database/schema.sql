@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
   status_pagamento TEXT DEFAULT 'Pendente' CHECK (status_pagamento IN ('Pendente', 'Pago', 'Cancelado')),
   mercado_pago_preference_id TEXT,
   mercado_pago_payment_id TEXT,
+  data_compra TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

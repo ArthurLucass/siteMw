@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from "react";
 import InputMask from "react-input-mask";
 import axios from "axios";
 import { supabase } from "@/lib/supabase";
+import { DIRETRIZES_IMAGEM_DADOS, REGULAMENTO_CMC } from "@/lib/termos";
 
 export default function InscricaoPage() {
   const [formData, setFormData] = useState({
@@ -20,6 +21,8 @@ export default function InscricaoPage() {
   const [error, setError] = useState("");
   const [aceitaUsoImagem, setAceitaUsoImagem] = useState(false);
   const [aceitaRegulamento, setAceitaRegulamento] = useState(false);
+  const [showModalDiretrizes, setShowModalDiretrizes] = useState(false);
+  const [showModalRegulamento, setShowModalRegulamento] = useState(false);
   const [loteConfig, setLoteConfig] = useState<{
     numero_lote: number;
     preco_base: number;
@@ -28,7 +31,7 @@ export default function InscricaoPage() {
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
   const valorBase = loteConfig?.preco_base || 40;
-  const valorAlmoco = loteConfig?.preco_almoco || 15;
+  const valorAlmoco = loteConfig?.preco_almoco || 25;
   const valorTotal = valorBase + (formData.incluiAlmoco ? valorAlmoco : 0);
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export default function InscricaoPage() {
           .from("config_sistema")
           .select("chave, valor")
           .or(
-            `chave.eq.lote_${loteAtivo}_preco_base,chave.eq.lote_${loteAtivo}_preco_almoco`
+            `chave.eq.lote_${loteAtivo}_preco_base,chave.eq.lote_${loteAtivo}_preco_almoco`,
           );
 
         if (configsError) throw configsError;
@@ -78,7 +81,7 @@ export default function InscricaoPage() {
   }, []);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
@@ -169,7 +172,7 @@ export default function InscricaoPage() {
       setError(
         err.response?.data?.error ||
           err.message ||
-          "Erro ao processar pedido. Tente novamente."
+          "Erro ao processar pedido. Tente novamente.",
       );
       setIsSubmitting(false);
     }
@@ -199,7 +202,7 @@ export default function InscricaoPage() {
               <div className="text-4xl font-bold mb-3">
                 Lote {loteConfig.numero_lote}
               </div>
-              <div className="text-2xl font-semibold mb-2">
+              <div className="text-xl sm:text-2xl font-semibold mb-2">
                 R${" "}
                 {(loteConfig.preco_base + loteConfig.preco_almoco)
                   .toFixed(2)
@@ -215,8 +218,8 @@ export default function InscricaoPage() {
         )}
 
         {/* Card principal */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h1 className="text-3xl font-bold text-center text-gray-800 mb-8">
+        <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-800 mb-8">
             Formulário de Inscrição
           </h1>
 
@@ -432,7 +435,7 @@ export default function InscricaoPage() {
                     <span className="text-xl font-bold text-gray-800">
                       Valor Total:
                     </span>
-                    <span className="text-3xl font-bold text-blue-600">
+                    <span className="text-2xl sm:text-3xl font-bold text-blue-600">
                       R$ {valorTotal.toFixed(2).replace(".", ",")}
                     </span>
                   </div>
@@ -461,42 +464,57 @@ export default function InscricaoPage() {
             </div>
 
             {/* Termos de Aceite */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-start">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
+              <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
                   id="aceitaUsoImagem"
                   checked={aceitaUsoImagem}
                   onChange={(e) => setAceitaUsoImagem(e.target.checked)}
-                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
+                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5 flex-shrink-0"
                 />
-                <label
-                  htmlFor="aceitaUsoImagem"
-                  className="ml-3 text-sm text-gray-700"
-                >
-                  Declaro que li e aceito as{" "}
-                  <span className="font-semibold">
-                    Diretrizes de Uso de Imagem e Dados Pessoais
-                  </span>
-                  .
-                </label>
+                <div className="flex-1">
+                  <label
+                    htmlFor="aceitaUsoImagem"
+                    className="text-sm text-gray-700"
+                  >
+                    Declaro que li e aceito as{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShowModalDiretrizes(true)}
+                      className="font-semibold text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Diretrizes de Uso de Imagem e Dados Pessoais
+                    </button>
+                    .
+                  </label>
+                </div>
               </div>
 
-              <div className="flex items-start">
+              <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
                   id="aceitaRegulamento"
                   checked={aceitaRegulamento}
                   onChange={(e) => setAceitaRegulamento(e.target.checked)}
-                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
+                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5 flex-shrink-0"
                 />
-                <label
-                  htmlFor="aceitaRegulamento"
-                  className="ml-3 text-sm text-gray-700"
-                >
-                  Declaro que li e concordo o{" "}
-                  <span className="font-semibold">Regulamento Geral</span>.
-                </label>
+                <div className="flex-1">
+                  <label
+                    htmlFor="aceitaRegulamento"
+                    className="text-sm text-gray-700"
+                  >
+                    Declaro que li e concordo com o{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShowModalRegulamento(true)}
+                      className="font-semibold text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Regulamento Geral
+                    </button>
+                    .
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -569,18 +587,18 @@ export default function InscricaoPage() {
         </div>
 
         {/* Footer com Redes Sociais */}
-        <footer className="mt-8 bg-white rounded-xl shadow-lg p-6">
+        <footer className="mt-8 bg-white rounded-xl shadow-lg p-4 sm:p-6">
           <div className="text-center">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Siga nossas redes sociais
             </h3>
-            <div className="flex justify-center items-center gap-6">
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-6">
               {/* WhatsApp */}
               <a
                 href="https://chat.whatsapp.com/IV6CXOqwRsnLxLdPmo5wCJ"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm sm:text-base"
               >
                 <svg
                   className="w-6 h-6"
@@ -597,7 +615,7 @@ export default function InscricaoPage() {
                 href="https://www.instagram.com/congmulherescatolicasitb"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm sm:text-base"
               >
                 <svg
                   className="w-6 h-6"
@@ -611,6 +629,86 @@ export default function InscricaoPage() {
             </div>
           </div>
         </footer>
+
+        {/* Modal - Diretrizes de Uso de Imagem */}
+        {showModalDiretrizes && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex items-center justify-between">
+                <h2 className="text-2xl font-bold">
+                  Diretrizes de Uso de Imagem e Dados Pessoais
+                </h2>
+                <button
+                  onClick={() => setShowModalDiretrizes(false)}
+                  className="text-2xl hover:opacity-80 transition"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-6 whitespace-pre-wrap text-sm text-gray-700 leading-relaxed space-y-4">
+                {DIRETRIZES_IMAGEM_DADOS}
+              </div>
+
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 flex gap-4">
+                <button
+                  onClick={() => setShowModalDiretrizes(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition font-semibold"
+                >
+                  Fechar
+                </button>
+                <button
+                  onClick={() => {
+                    setAceitaUsoImagem(true);
+                    setShowModalDiretrizes(false);
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                  Eu Aceito
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal - Regulamento Geral */}
+        {showModalRegulamento && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex items-center justify-between">
+                <h2 className="text-2xl font-bold">Regulamento Geral</h2>
+                <button
+                  onClick={() => setShowModalRegulamento(false)}
+                  className="text-2xl hover:opacity-80 transition"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-6 whitespace-pre-wrap text-sm text-gray-700 leading-relaxed space-y-4">
+                {REGULAMENTO_CMC}
+              </div>
+
+              <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 flex gap-4">
+                <button
+                  onClick={() => setShowModalRegulamento(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition font-semibold"
+                >
+                  Fechar
+                </button>
+                <button
+                  onClick={() => {
+                    setAceitaRegulamento(true);
+                    setShowModalRegulamento(false);
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                  Eu Aceito
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ interface Pedido {
   inclui_almoco: boolean;
   valor_total: number;
   status_pagamento: string;
+  data_compra: string;
   created_at: string;
 }
 
@@ -38,7 +39,7 @@ export default function AdminPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [loteAtivo, setLoteAtivo] = useState<string>("1");
   const [lotesConfig, setLotesConfig] = useState<Record<string, LoteConfig>>(
-    {}
+    {},
   );
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -175,7 +176,7 @@ export default function AdminPage() {
         : "--";
 
       setToastMessage(
-        `✅ Lote ${novoLote} ativado! Valor: R$ ${valorTotal} (Base R$ ${valorBase} + Almoço R$ ${valorAlmoco})`
+        `✅ Lote ${novoLote} ativado! Valor: R$ ${valorTotal} (Base R$ ${valorBase} + Almoço R$ ${valorAlmoco})`,
       );
       setToastType("success");
       setShowToast(true);
@@ -201,7 +202,7 @@ export default function AdminPage() {
       filtered = filtered.filter(
         (p) =>
           p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.email.toLowerCase().includes(searchTerm.toLowerCase())
+          p.email.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
@@ -267,9 +268,9 @@ export default function AdminPage() {
     if (!editingPedido) return;
 
     try {
-      // Recalcular valor total baseado no almoço
+      // Recalcular valor total baseado no almoço (R$25,00)
       const valorBase = 40;
-      const valorAlmoco = editingPedido.inclui_almoco ? 15 : 0;
+      const valorAlmoco = editingPedido.inclui_almoco ? 25 : 0;
       const valorTotal = valorBase + valorAlmoco;
 
       const { error } = await supabase
@@ -339,7 +340,7 @@ export default function AdminPage() {
         "Valor Total": p.valor_total,
         Status: p.status_pagamento,
         "Data de Criação": new Date(p.created_at).toLocaleDateString("pt-BR"),
-      }))
+      })),
     );
 
     const workbook = XLSX.utils.book_new();
@@ -386,26 +387,28 @@ export default function AdminPage() {
       {/* Header */}
       <div className="bg-white shadow">
         <div className="mx-auto px-3 sm:px-4 lg:px-6 py-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
                 Painel Administrativo
               </h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">
                 Gerencie inscrições e configurações do evento
               </p>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
               {/* Badge do Lote Ativo */}
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg shadow-lg">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg shadow-lg whitespace-nowrap">
                 <div className="text-xs font-medium uppercase tracking-wide">
                   Lote Atual
                 </div>
-                <div className="text-2xl font-bold">Lote {loteAtivo}</div>
+                <div className="text-xl sm:text-2xl font-bold">
+                  Lote {loteAtivo}
+                </div>
               </div>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                className="px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm sm:text-base whitespace-nowrap"
               >
                 Sair
               </button>
@@ -441,29 +444,29 @@ export default function AdminPage() {
             <div className="flex gap-2">
               <button
                 onClick={exportToPDF}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                className="flex-1 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm sm:text-base"
               >
-                PDF
+                📄 PDF
               </button>
               <button
                 onClick={exportToExcel}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                className="flex-1 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base"
               >
-                Excel
+                📊 Excel
               </button>
             </div>
           </div>
 
           {/* Seleção de Lote Ativo */}
-          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-4 pb-4 border-b border-gray-200">
-            <label className="text-sm font-semibold text-gray-700">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-4 pb-4 border-b border-gray-200">
+            <label className="text-xs sm:text-sm font-semibold text-gray-700 whitespace-nowrap">
               🎯 Configurar Lote Ativo:
             </label>
             <select
               value={loteAtivo}
               onChange={(e) => handleLoteChange(e.target.value)}
               disabled={isChangingLote}
-              className="w-full md:w-auto px-4 py-2 border-2 border-blue-500 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none bg-blue-50 font-semibold text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full md:w-auto px-3 sm:px-4 py-2 border-2 border-blue-500 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none bg-blue-50 font-semibold text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
             >
               {Object.entries(lotesConfig).map(([numero, config]) => {
                 const valorTotal = (
@@ -515,7 +518,7 @@ export default function AdminPage() {
 
         {/* Tabela de Pedidos */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto 2xl:overflow-x-visible">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -545,6 +548,9 @@ export default function AdminPage() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Valor
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Data de Compra
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -584,6 +590,20 @@ export default function AdminPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       R$ {pedido.valor_total.toFixed(2)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {pedido.data_compra
+                        ? new Date(pedido.data_compra).toLocaleDateString(
+                            "pt-BR",
+                            {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )
+                        : "N/A"}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
                         value={pedido.status_pagamento}
@@ -594,8 +614,8 @@ export default function AdminPage() {
                           pedido.status_pagamento === "Pago"
                             ? "bg-green-100 text-green-800"
                             : pedido.status_pagamento === "Pendente"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-red-100 text-red-800"
                         }`}
                       >
                         <option value="Pendente">Pendente</option>
