@@ -36,6 +36,7 @@ export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [editingPedido, setEditingPedido] = useState<Pedido | null>(null);
+  const [editBaseValue, setEditBaseValue] = useState<number | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [loteAtivo, setLoteAtivo] = useState<string>("1");
   const router = useRouter();
@@ -249,10 +250,13 @@ export default function AdminPage() {
     if (!editingPedido) return;
 
     try {
-      // Recalcular valor total baseado no almoço (R$25,00)
-      const valorBase = 40;
+      // Recalcular valor total com base preservada do pedido
+      const baseValue =
+        typeof editBaseValue === "number" && Number.isFinite(editBaseValue)
+          ? editBaseValue
+          : (lotesConfig[loteAtivo]?.preco_base ?? editingPedido.valor_total);
       const valorAlmoco = editingPedido.inclui_almoco ? 25 : 0;
-      const valorTotal = valorBase + valorAlmoco;
+      const valorTotal = baseValue + valorAlmoco;
 
       const { error } = await supabase
         .from("pedidos")
@@ -284,6 +288,7 @@ export default function AdminPage() {
       setTimeout(() => setShowToast(false), 4000);
       setShowEditModal(false);
       setEditingPedido(null);
+      setEditBaseValue(null);
       loadPedidos();
     } catch (error: any) {
       console.error("Erro ao atualizar pedido:", error);
@@ -292,6 +297,7 @@ export default function AdminPage() {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 4000);
       setShowEditModal(false);
+      setEditBaseValue(null);
     }
   };
 
@@ -631,6 +637,12 @@ export default function AdminPage() {
                       <button
                         onClick={() => {
                           setEditingPedido(pedido);
+                          const baseValue =
+                            pedido.valor_total -
+                            (pedido.inclui_almoco ? 25 : 0);
+                          setEditBaseValue(
+                            Number.isFinite(baseValue) ? baseValue : null,
+                          );
                           setShowEditModal(true);
                         }}
                         className="text-blue-600 hover:text-blue-900 mr-3"
@@ -832,6 +844,7 @@ export default function AdminPage() {
                 onClick={() => {
                   setShowEditModal(false);
                   setEditingPedido(null);
+                  setEditBaseValue(null);
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
               >

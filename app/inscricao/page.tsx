@@ -144,28 +144,32 @@ export default function InscricaoPage() {
     setIsSubmitting(true);
 
     try {
-      // Definir URLs dos lotes
-      const urls: Record<string, { base: string; almoco: string }> = {
-        "1": {
-          base: "https://mpago.li/1tmSGGZ",
-          almoco: "https://mpago.la/2WfnHaU",
-        },
-        "2": {
-          base: "https://mpago.la/2LiHv88",
-          almoco: "https://mpago.la/1yKkmFH",
-        },
-        "3": {
-          base: "https://mpago.la/2pg4Hdk",
-          almoco: "https://mpago.la/18a4pfS",
-        },
-      };
-
-      // Determinar lote ativo
+      // Determinar lote ativo e delegar criação do pedido + preferência ao servidor
       const lote = String(loteConfig?.numero_lote || 1);
-      const link = formData.incluiAlmoco ? urls[lote].almoco : urls[lote].base;
 
-      // Redirecionar para o link correto
-      window.location.href = link;
+      const resp = await axios.post("/api/mercadopago/create-preference", {
+        nome: formData.nome,
+        idade: Number(formData.idade),
+        telefone: formData.telefone,
+        email: formData.email,
+        parroquia: formData.parroquia,
+        cidade: formData.cidade,
+        tamanho: formData.tamanho,
+        inclui_almoco: formData.incluiAlmoco,
+        valor_total: valorTotal,
+        lote: lote,
+      });
+
+      // Usar um campo de fallback `redirect_url` enviado pelo servidor
+      const redirectUrl =
+        resp.data?.redirect_url ||
+        resp.data?.init_point ||
+        resp.data?.sandbox_init_point;
+      if (!redirectUrl)
+        throw new Error("Não foi possível obter link de pagamento");
+
+      // Redirecionar para o link de pagamento
+      window.location.href = redirectUrl;
     } catch (err: any) {
       console.error("❌ Erro ao processar pedido:", err);
       setError("Erro interno. Tente novamente.");

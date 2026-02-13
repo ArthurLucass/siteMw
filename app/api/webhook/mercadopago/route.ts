@@ -2,20 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import axios from "axios";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 // Cliente Supabase com service role key para o webhook
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  },
-);
+const supabaseAdmin =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      })
+    : null;
 
 export async function POST(request: NextRequest) {
   try {
+    if (!supabaseAdmin) {
+      console.error("❌ Variáveis do Supabase ausentes para o webhook");
+      return NextResponse.json(
+        { error: "Configuração do servidor ausente" },
+        { status: 500 },
+      );
+    }
+
     // Obter dados do webhook
     const body = await request.json();
 
@@ -41,8 +51,7 @@ export async function POST(request: NextRequest) {
     );
 
     const payment = paymentResponse.data;
-    const preferenceId =
-      payment.external_reference || payment.metadata?.preference_id;
+    const pedidoId = payment.external_reference;
 
     // Mapear status do Mercado Pago para nosso sistema
     let statusPagamento = "Pendente";
@@ -62,105 +71,57 @@ export async function POST(request: NextRequest) {
         break;
     }
 
-    // Atualizar pedido no Supabase
-    // Primeiro, buscar pelo preference_id ou payment_id
-    const { data: pedidos, error: searchError } = await supabaseAdmin
-      .from("pedidos")
-      .select("*")
-      .or(
-        `mercado_pago_preference_id.eq.${preferenceId},mercado_pago_payment_id.eq.${paymentId}`,
-      );
-
-    if (searchError) {
-      console.error("Erro ao buscar pedido:", searchError);
-      return NextResponse.json(
-        { error: "Erro ao buscar pedido" },
-        { status: 500 },
-      );
+    if (!pedidoId) {
+      console.log("Pedido não encontrado no external_reference");
+      return NextResponse.json({ received: true, warning: "Pedido ausente" });
     }
 
-    if (!pedidos || pedidos.length === 0) {
-      // Se não encontrou por preference_id, tentar buscar por email do pagador
-      const payerEmail = payment.payer?.email;
-
-      if (payerEmail) {
-        const { data: pedidosPorEmail, error: emailSearchError } =
-          await supabaseAdmin
-            .from("pedidos")
-            .select("*")
-            .eq("email", payerEmail)
-            .eq("status_pagamento", "Pendente")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-        if (
-          !emailSearchError &&
-          pedidosPorEmail &&
-          pedidosPorEmail.length > 0
-        ) {
-          const pedido = pedidosPorEmail[0];
-
-          // Preparar dados de atualização
-          const updateData: any = {
-            status_pagamento: statusPagamento,
-            mercado_pago_payment_id: paymentId.toString(),
-          };
-
-          // Preencher data_compra quando pagamento for aprovado
-          if (statusPagamento === "Pago") {
-            updateData.data_compra = new Date().toISOString();
-          }
-
-          // Atualizar pedido
-          const { error: updateError } = await supabaseAdmin
-            .from("pedidos")
-            .update(updateData)
-            .eq("id", pedido.id);
-
-          if (updateError) {
-            console.error("Erro ao atualizar pedido:", updateError);
-            return NextResponse.json(
-              { error: "Erro ao atualizar pedido" },
-              { status: 500 },
-            );
-          }
-
-          return NextResponse.json({ success: true, updated: true });
-        }
-      }
-
-      console.log("Pedido não encontrado para preference_id:", preferenceId);
-      return NextResponse.json({
-        received: true,
-        warning: "Pedido não encontrado",
-      });
-    }
-
-    // Atualizar o primeiro pedido encontrado
-    const pedido = pedidos[0];
-
-    // Preparar dados de atualização
-    const updateData: any = {
+    const updateData = {
       status_pagamento: statusPagamento,
-      mercado_pago_payment_id: paymentId.toString(),
+      mercadopago_payment_id: paymentId.toString(),
+      ...(statusPagamento === "Pago"
+        ? { data_compra: new Date().toISOString() }
+        : {}),
     };
 
-    // Preencher data_compra quando pagamento for aprovado
-    if (statusPagamento === "Pago") {
-      updateData.data_compra = new Date().toISOString();
-    }
+    const fallbackUpdate = {
+      status_pagamento: statusPagamento,
+      mercado_pago_payment_id: paymentId.toString(),
+      ...(statusPagamento === "Pago"
+        ? { data_compra: new Date().toISOString() }
+        : {}),
+    };
 
     const { error: updateError } = await supabaseAdmin
       .from("pedidos")
       .update(updateData)
-      .eq("id", pedido.id);
+      .eq("id", pedidoId);
 
     if (updateError) {
-      console.error("Erro ao atualizar pedido:", updateError);
-      return NextResponse.json(
-        { error: "Erro ao atualizar pedido" },
-        { status: 500 },
+      const shouldFallback = updateError.message?.includes(
+        "mercadopago_payment_id",
       );
+
+      if (!shouldFallback) {
+        console.error("Erro ao atualizar pedido:", updateError);
+        return NextResponse.json(
+          { error: "Erro ao atualizar pedido" },
+          { status: 500 },
+        );
+      }
+
+      const { error: fallbackError } = await supabaseAdmin
+        .from("pedidos")
+        .update(fallbackUpdate)
+        .eq("id", pedidoId);
+
+      if (fallbackError) {
+        console.error("Erro ao atualizar pedido (fallback):", fallbackError);
+        return NextResponse.json(
+          { error: "Erro ao atualizar pedido" },
+          { status: 500 },
+        );
+      }
     }
 
     return NextResponse.json({ success: true, updated: true });

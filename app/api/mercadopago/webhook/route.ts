@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { MercadoPagoConfig, Payment } from "mercadopago";
+import { createClient } from "@supabase/supabase-js";
+
+const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Configurar cliente do Mercado Pago
 const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
+  accessToken: accessToken || "",
 });
 
 // Mapeamento de status do Mercado Pago para nosso sistema
@@ -20,6 +24,21 @@ const STATUS_MAP: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!accessToken || !supabaseUrl || !supabaseServiceKey) {
+      console.error("❌ Variáveis de ambiente ausentes para o webhook");
+      return NextResponse.json(
+        { error: "Configuração do servidor ausente" },
+        { status: 500 },
+      );
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
     const body = await request.json();
 
     console.log("📥 Webhook recebido:", body);
@@ -53,6 +72,23 @@ export async function POST(request: NextRequest) {
     // Mapear status do Mercado Pago para nosso sistema
     const statusPagamento = STATUS_MAP[status] || "Pendente";
 
+    const updateBase = {
+      status_pagamento: statusPagamento,
+      mercadopago_payment_id: paymentId.toString(),
+      mercadopago_status: status,
+      ...(statusPagamento === "Pago"
+        ? { data_compra: new Date().toISOString() }
+        : {}),
+    };
+
+    const fallbackUpdate = {
+      status_pagamento: statusPagamento,
+      mercado_pago_payment_id: paymentId.toString(),
+      ...(statusPagamento === "Pago"
+        ? { data_compra: new Date().toISOString() }
+        : {}),
+    };
+
     console.log("🔄 Atualizando pedido:", {
       pedido_id: pedidoId,
       payment_id: paymentId,
@@ -61,18 +97,33 @@ export async function POST(request: NextRequest) {
     });
 
     // Atualizar status no banco
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("pedidos")
-      .update({
-        status_pagamento: statusPagamento,
-        mercadopago_payment_id: paymentId.toString(),
-        mercadopago_status: status,
-      })
+      .update(updateBase)
       .eq("id", pedidoId);
 
     if (error) {
-      console.error("❌ Erro ao atualizar pedido:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      const shouldFallback =
+        error.message?.includes("mercadopago_payment_id") ||
+        error.message?.includes("mercadopago_status");
+
+      if (!shouldFallback) {
+        console.error("❌ Erro ao atualizar pedido:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      const { error: fallbackError } = await supabaseAdmin
+        .from("pedidos")
+        .update(fallbackUpdate)
+        .eq("id", pedidoId);
+
+      if (fallbackError) {
+        console.error("❌ Erro ao atualizar pedido (fallback):", fallbackError);
+        return NextResponse.json(
+          { error: fallbackError.message },
+          { status: 500 },
+        );
+      }
     }
 
     console.log("✅ Pedido atualizado com sucesso:", pedidoId);
@@ -82,7 +133,7 @@ export async function POST(request: NextRequest) {
     console.error("❌ Erro no webhook:", error);
     return NextResponse.json(
       { error: "Erro ao processar webhook", details: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
